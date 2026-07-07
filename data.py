@@ -12,6 +12,7 @@ load_dotenv()  # loads variables from a local .env file, if present (no effect o
 
 GMAIL_SENDER = os.environ.get("GMAIL_SENDER", "")
 GMAIL_PASSWORD = os.environ.get("GMAIL_PASSWORD", "")
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(16))
@@ -111,15 +112,13 @@ def sv():
 
 # ── ROUTES ────────────────────────────────────────────────────────────────
 
+import requests
+
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 
 def send_reset_email(to_email, reset_url):
-    """Send password reset email via Gmail."""
+    """Send password reset email via Resend API."""
     try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = "Budget Bee — Reset Your Password"
-        msg["From"]    = GMAIL_SENDER
-        msg["To"]      = to_email
-
         html = f"""
         <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:32px;background:#FEFAF2;border-radius:16px;">
           <h2 style="color:#C47B0E;">🐝 Budget Bee</h2>
@@ -134,12 +133,22 @@ def send_reset_email(to_email, reset_url):
           </p>
         </div>"""
 
-        msg.attach(MIMEText(html, "html"))
-
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(GMAIL_SENDER, GMAIL_PASSWORD)
-            server.sendmail(GMAIL_SENDER, to_email, msg.as_string())
-        return True
+        response = requests.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
+            json={
+                "from": "Budget Bee <onboarding@resend.dev>",
+                "to": [to_email],
+                "subject": "Budget Bee — Reset Your Password",
+                "html": html
+            },
+            timeout=10
+        )
+        if response.status_code == 200:
+            return True
+        else:
+            print(f"[Email Error] Resend API returned {response.status_code}: {response.text}")
+            return False
     except Exception as e:
         print(f"[Email Error] {e}")
         return False
